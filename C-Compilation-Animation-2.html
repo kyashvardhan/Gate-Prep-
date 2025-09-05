@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The C Compilation Journey (Detailed & Interactive)</title>
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --box-bg: #2c2c2c;
+            --border-color: #555;
+            --text-color: #f0f0f0;
+            --accent-color: #00aaff;
+            --file-color: #ffcc00;
+            --arrow-color: #777;
+            --code-bg: #111;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* Align to top */
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        #animation-container {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            height: 150px;
+            margin-bottom: 1rem;
+        }
+
+        #pipeline {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            height: 100%;
+        }
+
+        .stage {
+            background-color: var(--box-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            width: 150px;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
+            z-index: 10;
+        }
+        .stage:hover {
+            transform: translateY(-5px);
+        }
+
+        .stage-name { font-weight: bold; color: var(--accent-color); }
+        .stage-tool { font-size: 0.8em; color: #aaa; }
+        .stage.active {
+            border-color: var(--file-color);
+            box-shadow: 0 0 15px var(--file-color);
+            transform: translateY(-5px);
+        }
+
+        .arrow { font-size: 2.5rem; color: var(--arrow-color); margin: 0 1rem; }
+
+        #code-file {
+            position: absolute;
+            top: 50%;
+            left: -150px;
+            transform: translateY(-50%);
+            background-color: var(--file-color);
+            color: #333;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-weight: bold;
+            z-index: 20;
+            opacity: 0;
+            transition: left 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.5s ease, transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+        }
+        
+        /* New container for explanation and code view */
+        #details-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            justify-content: center;
+        }
+
+        .details-panel {
+            background-color: var(--box-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            flex: 1;
+            min-width: 350px;
+            transition: all 0.3s ease;
+        }
+        .details-panel h3 {
+            margin: 0 0 1rem 0;
+            color: var(--file-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+        #explanation-box ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        #explanation-box li {
+            margin-bottom: 0.5rem;
+        }
+        
+        #code-view {
+            background-color: var(--code-bg);
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-size: 0.9em;
+            color: #ddd;
+            min-height: 150px;
+        }
+
+        #controls {
+            margin-top: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .nav-button {
+            background: none; border: 2px solid var(--accent-color); color: var(--accent-color);
+            width: 50px; height: 50px; border-radius: 50%; font-size: 2rem; cursor: pointer;
+            transition: all 0.2s ease; margin: 0 2rem; display: flex; align-items: center; justify-content: center;
+        }
+        .nav-button:hover { background-color: var(--accent-color); color: white; }
+        .nav-button:disabled { border-color: #555; color: #555; cursor: not-allowed; background: none; }
+        #reset-btn {
+            background-color: #c0392b; color: white; border: none; padding: 0.6rem 1.2rem;
+            border-radius: 5px; font-size: 1rem; cursor: pointer; transition: background-color 0.2s;
+        }
+        #reset-btn:hover { background-color: #e74c3c; }
+
+    </style>
+</head>
+<body>
+
+    <h1>The C Compilation Journey (Detailed)</h1>
+
+    <div id="animation-container">
+        <div id="pipeline">
+            <div class="stage" id="start-point"><div class="stage-name">You</div><div class="stage-tool">(Source Code)</div></div>
+            <div class="arrow">&rarr;</div>
+            <div class="stage" id="preprocessor"><div class="stage-name">Preprocessor</div><div class="stage-tool">(cpp)</div></div>
+            <div class="arrow">&rarr;</div>
+            <div class="stage" id="compiler"><div class="stage-name">Compiler</div><div class="stage-tool">(cc1)</div></div>
+            <div class="arrow">&rarr;</div>
+            <div class="stage" id="assembler"><div class="stage-name">Assembler</div><div class="stage-tool">(as)</div></div>
+            <div class="arrow">&rarr;</div>
+            <div class="stage" id="linker"><div class="stage-name">Linker</div><div class="stage-tool">(ld)</div></div>
+        </div>
+        <div id="code-file">hello.c</div>
+    </div>
+
+    <div id="details-container">
+        <div id="explanation-box" class="details-panel">
+            <h3>Welcome!</h3>
+            <p>Click the 'Next' arrow to begin. This animation will show you how your code is transformed and what each file looks like in the background.</p>
+        </div>
+        <div id="code-view-container" class="details-panel">
+            <h3>File Content Preview</h3>
+            <pre id="code-view">// Content will appear here</pre>
+        </div>
+    </div>
+
+
+    <div id="controls">
+        <button class="nav-button" id="prev-btn" title="Previous Step">&larr;</button>
+        <button id="reset-btn">Reset</button>
+        <button class="nav-button" id="next-btn" title="Next Step">&rarr;</button>
+    </div>
+
+    <script>
+        // --- 1. GRAB HTML ELEMENTS ---
+        const codeFile = document.getElementById('code-file');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const explanationBox = document.getElementById('explanation-box');
+        const codeView = document.getElementById('code-view');
+
+        const stages = {
+            start: document.getElementById('start-point'),
+            preprocessor: document.getElementById('preprocessor'),
+            compiler: document.getElementById('compiler'),
+            assembler: document.getElementById('assembler'),
+            linker: document.getElementById('linker'),
+        };
+
+        // --- 2. DEFINE ANIMATION STEPS (Data-Driven Approach with Code Examples) ---
+        const animationSteps = [
+            // Step 0: Initial State
+            {
+                title: "Start: The Source Code",
+                explanation: `<ul><li>You begin with a text file, <strong>hello.c</strong>.</li><li>This is high-level code, designed for humans to read and write.</li><li>The CPU cannot execute this directly. It's like a recipe written in English for a French chef—it needs to be translated.</li></ul>`,
+                codeExample: `// This is a comment, it will be removed.\n#include <stdio.h>\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}`,
+                activeStage: 'start',
+                fileName: 'hello.c',
+                filePosTarget: stages.start
+            },
+            // Step 1: Preprocessor
+            {
+                title: "1. Preprocessing (cpp)",
+                explanation: `<ul><li>The preprocessor modifies the source code based on directives (lines starting with '#').</li><li><strong>#include &lt;stdio.h&gt;</strong> is replaced by the actual contents of the 'stdio.h' file, which contains declarations for functions like 'printf'.</li><li>Comments are stripped out.</li><li>The output is another C source file, <strong>hello.i</strong>, which is often very large.</li></ul>`,
+                codeExample: `//... (thousands of lines from stdio.h) ...\n\nextern int printf (__const char *__restrict __format, ...);\n\n//... more content from stdio.h ...\n\nint main() {\n    printf("Hello, World!\\n");\n    return 0;\n}`,
+                activeStage: 'preprocessor',
+                fileName: 'hello.i',
+                filePosTarget: stages.preprocessor
+            },
+            // Step 2: Compiler
+            {
+                title: "2. Compilation (cc1)",
+                explanation: `<ul><li>The compiler parses the pure C code (<strong>hello.i</strong>) and converts it into Assembly language.</li><li>Internally, it creates a structure called an Abstract Syntax Tree (AST) to understand your code's logic.</li><li>It checks for syntax errors and performs many optimizations to make the code efficient.</li><li>Assembly is a low-level language that has a direct, one-to-one relationship with CPU instructions.</li></ul>`,
+                codeExample: `; Assembly for main function (simplified)\n_main:\n    push    rbp\n    mov     rbp, rsp\n    lea     rdi, [rip + L_.str]\n    call    _printf\n    xor     eax, eax\n    pop     rbp\n    ret\n\nL_.str:\n    .asciz  "Hello, World!\\n"`,
+                activeStage: 'compiler',
+                fileName: 'hello.s',
+                filePosTarget: stages.compiler
+            },
+            // Step 3: Assembler
+            {
+                title: "3. Assembly (as)",
+                explanation: `<ul><li>The assembler takes the human-readable Assembly code (<strong>hello.s</strong>) and translates it into the actual binary machine code that the CPU executes.</li><li>The output is a 'relocatable object file', <strong>hello.o</strong>.</li><li>It's called 'relocatable' because it doesn't yet know the final memory address of functions like 'printf'. It just leaves a note for the Linker to figure it out.</li></ul>`,
+                codeExample: `// File: hello.o (Binary machine code)\n// This is not human-readable. It's a sequence of bytes.\n// Below is a hexadecimal representation.\n\n7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00\n55 48 89 e5 48 8d 3d 00 00 00 00 e8 00 00 00 00\n... (Symbol table contains a note: 'CALL _printf') ...\n48 65 6c 6c 6f 2c 20 57 6f 72 6c 64 21 0a 00`,
+                activeStage: 'assembler',
+                fileName: 'hello.o',
+                filePosTarget: stages.assembler
+            },
+            // Step 4: Linker
+            {
+                title: "4. Linking (ld)",
+                explanation: `<ul><li>The linker's job is to assemble the final puzzle. It takes your object file(s) (<strong>hello.o</strong>) and links them with object files from system libraries (e.g., the code for 'printf').</li><li>It resolves all the 'relocatable' notes, replacing placeholders with the final memory addresses of the functions.</li><li>The result is a single, complete, executable program.</li></ul>`,
+                codeExample: `// File: hello (Final Executable)\n// This is also binary machine code, now complete.\n// It includes your code and the library code for printf.\n\n7f 45 4c 46 02 ... (Executable Header)\n...\n55 48 89 e5 48 8d 3d 21 04 00 00 e8 2b ff ff ff\n... (The call to printf now has a real memory address)\n...\n// (Actual machine code for the printf function is now included)\n...`,
+                activeStage: 'linker',
+                fileName: 'hello',
+                filePosTarget: stages.linker
+            },
+            // Step 5: Finish
+            {
+                title: "Done! The Executable",
+                explanation: `<ul><li>The <strong>hello</strong> file is ready to be loaded by the Operating System's loader.</li><li>When you run './hello', the OS loads this binary code into memory, and the CPU begins executing the instructions one by one.</li><li>You have successfully turned an idea (source code) into a process (a running program)!</li></ul>`,
+                codeExample: `// The file is ready to be executed by the OS!\n\n$ ./hello\nHello, World!`,
+                activeStage: 'linker',
+                fileName: 'hello',
+                filePosTarget: null 
+            }
+        ];
+
+        // --- 3. STATE MANAGEMENT & CORE FUNCTION ---
+        let currentStep = -1;
+
+        function updateStep(stepIndex) {
+            Object.values(stages).forEach(stage => stage.classList.remove('active'));
+
+            if (stepIndex < 0 || stepIndex >= animationSteps.length) {
+                currentStep = -1;
+                codeFile.style.opacity = '0';
+                codeFile.style.left = '-150px';
+                explanationBox.innerHTML = `<h3>Welcome!</h3><p>Click the 'Next' arrow to begin. This animation will show you how your code is transformed and what each file looks like in the background.</p>`;
+                codeView.textContent = `// Content will appear here`;
+                prevBtn.disabled = true;
+                nextBtn.disabled = false;
+                return;
+            }
+
+            const stepData = animationSteps[stepIndex];
+            explanationBox.innerHTML = `<h3>${stepData.title}</h3>${stepData.explanation}`;
+            codeView.textContent = stepData.codeExample;
+            codeFile.innerText = stepData.fileName;
+
+            if (stepData.activeStage && stages[stepData.activeStage]) {
+                stages[stepData.activeStage].classList.add('active');
+            }
+
+            codeFile.style.opacity = '1';
+            if (stepData.filePosTarget) {
+                const targetRect = stepData.filePosTarget.getBoundingClientRect();
+                const containerRect = codeFile.parentElement.getBoundingClientRect();
+                codeFile.style.left = `${targetRect.left - containerRect.left - codeFile.offsetWidth - 20}px`;
+            } else {
+                codeFile.style.left = `${codeFile.parentElement.offsetWidth + 50}px`;
+            }
+
+            prevBtn.disabled = (stepIndex === 0);
+            nextBtn.disabled = (stepIndex === animationSteps.length - 1);
+        }
+
+        // --- 4. EVENT LISTENERS ---
+        nextBtn.addEventListener('click', () => {
+            if (currentStep < animationSteps.length - 1) {
+                currentStep++;
+                updateStep(currentStep);
+            }
+        });
+
+        prevBtn.addEventListener('click', () => {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep(currentStep);
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            updateStep(-1);
+        });
+
+        // Initialize
+        updateStep(-1);
+    </script>
+</body>
+</html>
+
